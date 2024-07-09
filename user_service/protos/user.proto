@@ -7,7 +7,7 @@ option go_package = "./protos";
 service UserService {
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {
     option(google.api.http) = {
-      get: "/user"
+      get: "/user/{id}"
     };
   }
 
@@ -28,8 +28,16 @@ message GetUserRequest {
   int32 id = 1;
 }
 
+message TransactionUser {
+  string type = 3;
+  float amount = 4;
+}
+
 message GetUserResponse {
-  User user = 1;
+  int32 id = 1;
+  string name = 2;
+  int32 balance = 3;
+  repeated TransactionUser transactions = 4;
 }
 
 message CreateUserRequest {

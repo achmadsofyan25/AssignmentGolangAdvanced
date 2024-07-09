@@ -26,11 +26,32 @@ func (u *UserServer) GetUser(c context.Context, req *pb.GetUserRequest) (*pb.Get
 		return nil, err
 	}
 
+	user_wallet, err := u.walletClient.GetWallet(c, &walletPb.GetWalletRequest{UserId: int32(getUser.ID)})
+	if err != nil {
+		log.Println("cant get user wallet")
+		return nil, err
+	}
+
+	list_transaction, err := u.walletClient.GetTransactions(c, &walletPb.GetTransactionsRequest{UserId: int32(getUser.ID)})
+	if err != nil {
+		log.Println("cant get user transactions")
+		return nil, err
+	}
+
+	var list_trans []*pb.TransactionUser
+
+	for _, v := range list_transaction.Transactions {
+		list_trans = append(list_trans, &pb.TransactionUser{
+			Type:   v.Type,
+			Amount: v.Amount,
+		})
+	}
+
 	return &pb.GetUserResponse{
-		User: &pb.User{
-			Id:   int32(getUser.ID),
-			Name: getUser.Name,
-		},
+		Id:           int32(getUser.ID),
+		Name:         getUser.Name,
+		Balance:      int32(user_wallet.Wallet.GetBalance()),
+		Transactions: list_trans,
 	}, nil
 }
 
