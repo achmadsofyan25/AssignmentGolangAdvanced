@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v5.27.0
-// source: protos/wallet.proto
+// source: wallet.proto
 
 package protos
 
@@ -25,6 +25,7 @@ type WalletServiceClient interface {
 	CreateWallet(ctx context.Context, in *WalletRequest, opts ...grpc.CallOption) (*WalletResponse, error)
 	TopUp(ctx context.Context, in *TopUpRequest, opts ...grpc.CallOption) (*TopUpResponse, error)
 	Transfer(ctx context.Context, in *TransferRequest, opts ...grpc.CallOption) (*TransferResponse, error)
+	GetWallet(ctx context.Context, in *GetWalletRequest, opts ...grpc.CallOption) (*GetWalletResponse, error)
 	GetTransactions(ctx context.Context, in *GetTransactionsRequest, opts ...grpc.CallOption) (*GetTransactionsResponse, error)
 }
 
@@ -63,6 +64,15 @@ func (c *walletServiceClient) Transfer(ctx context.Context, in *TransferRequest,
 	return out, nil
 }
 
+func (c *walletServiceClient) GetWallet(ctx context.Context, in *GetWalletRequest, opts ...grpc.CallOption) (*GetWalletResponse, error) {
+	out := new(GetWalletResponse)
+	err := c.cc.Invoke(ctx, "/WalletService/GetWallet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *walletServiceClient) GetTransactions(ctx context.Context, in *GetTransactionsRequest, opts ...grpc.CallOption) (*GetTransactionsResponse, error) {
 	out := new(GetTransactionsResponse)
 	err := c.cc.Invoke(ctx, "/WalletService/GetTransactions", in, out, opts...)
@@ -79,6 +89,7 @@ type WalletServiceServer interface {
 	CreateWallet(context.Context, *WalletRequest) (*WalletResponse, error)
 	TopUp(context.Context, *TopUpRequest) (*TopUpResponse, error)
 	Transfer(context.Context, *TransferRequest) (*TransferResponse, error)
+	GetWallet(context.Context, *GetWalletRequest) (*GetWalletResponse, error)
 	GetTransactions(context.Context, *GetTransactionsRequest) (*GetTransactionsResponse, error)
 	mustEmbedUnimplementedWalletServiceServer()
 }
@@ -95,6 +106,9 @@ func (UnimplementedWalletServiceServer) TopUp(context.Context, *TopUpRequest) (*
 }
 func (UnimplementedWalletServiceServer) Transfer(context.Context, *TransferRequest) (*TransferResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Transfer not implemented")
+}
+func (UnimplementedWalletServiceServer) GetWallet(context.Context, *GetWalletRequest) (*GetWalletResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWallet not implemented")
 }
 func (UnimplementedWalletServiceServer) GetTransactions(context.Context, *GetTransactionsRequest) (*GetTransactionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTransactions not implemented")
@@ -166,6 +180,24 @@ func _WalletService_Transfer_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletService_GetWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWalletRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletServiceServer).GetWallet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/WalletService/GetWallet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletServiceServer).GetWallet(ctx, req.(*GetWalletRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WalletService_GetTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetTransactionsRequest)
 	if err := dec(in); err != nil {
@@ -204,10 +236,14 @@ var WalletService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WalletService_Transfer_Handler,
 		},
 		{
+			MethodName: "GetWallet",
+			Handler:    _WalletService_GetWallet_Handler,
+		},
+		{
 			MethodName: "GetTransactions",
 			Handler:    _WalletService_GetTransactions_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "protos/wallet.proto",
+	Metadata: "wallet.proto",
 }

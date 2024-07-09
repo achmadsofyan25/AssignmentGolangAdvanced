@@ -4,8 +4,9 @@ import (
 	"context"
 	"log"
 	"net"
-	"wallet_gateway/internal/user_service/model"
-	pb "wallet_gateway/internal/user_service/protos"
+	"user_service/model"
+	pb "user_service/protos"
+	walletPb "wallet_service/protos"
 
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
@@ -14,7 +15,8 @@ import (
 
 type UserServer struct {
 	pb.UnimplementedUserServiceServer
-	db *gorm.DB
+	db           *gorm.DB
+	walletClient walletPb.WalletServiceClient
 }
 
 func (u *UserServer) GetUser(c context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
@@ -42,6 +44,14 @@ func (u *UserServer) CreateUser(c context.Context, req *pb.CreateUserRequest) (*
 		return nil, err
 	}
 
+	_, err = u.walletClient.CreateWallet(context.Background(), &walletPb.WalletRequest{
+		UserId: int32(createdUser.ID),
+	})
+	if err != nil {
+		log.Println("error creating wallet for user:", err)
+		return nil, err
+	}
+
 	return &pb.CreateUserResponse{
 		User: &pb.User{
 			Id:   int32(createdUser.ID),
@@ -59,8 +69,16 @@ func main() {
 
 	DB.AutoMigrate(&model.User{})
 
+	walletConn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("failed to connect to wallet service: %v", err)
+	}
+	defer walletConn.Close()
+
+	walletClient := walletPb.NewWalletServiceClient(walletConn)
+
 	userServer := grpc.NewServer()
-	pb.RegisterUserServiceServer(userServer, &UserServer{db: DB})
+	pb.RegisterUserServiceServer(userServer, &UserServer{db: DB, walletClient: walletClient})
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {

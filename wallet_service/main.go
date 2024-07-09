@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"wallet_gateway/internal/wallet_service/model"
-	pb "wallet_gateway/internal/wallet_service/protos"
+	"wallet_service/model"
+	pb "wallet_service/protos"
 
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
@@ -30,6 +30,22 @@ func (w *WalletService) CreateWallet(c context.Context, req *pb.WalletRequest) (
 	}
 
 	return &pb.WalletResponse{
+		Wallet: &pb.Wallet{
+			Id:      int32(wallet.ID),
+			UserId:  int32(wallet.UserID),
+			Balance: float32(wallet.Balance),
+		},
+	}, nil
+}
+
+func (w *WalletService) GetWallet(c context.Context, req *pb.GetWalletRequest) (*pb.GetWalletResponse, error) {
+	var wallet model.Wallet
+	if err := w.db.Where("user_id = ?", req.UserId).First(&wallet).Error; err != nil {
+		log.Println("error get wallet: %v", err)
+		return nil, err
+	}
+
+	return &pb.GetWalletResponse{
 		Wallet: &pb.Wallet{
 			Id:      int32(wallet.ID),
 			UserId:  int32(wallet.UserID),

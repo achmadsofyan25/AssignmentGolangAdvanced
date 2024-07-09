@@ -1,0 +1,7 @@
+go 1.22.5
+
+use (
+	./gateway
+	./user_service
+	./wallet_service
+)

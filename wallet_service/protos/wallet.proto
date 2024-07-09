@@ -1,12 +1,45 @@
 syntax = "proto3";
 
+import "google/api/annotations.proto";
+
 option go_package = "./protos";
 
 service WalletService {
   rpc CreateWallet(WalletRequest) returns (WalletResponse);
-  rpc TopUp(TopUpRequest) returns (TopUpResponse);
-  rpc Transfer(TransferRequest) returns (TransferResponse);
-  rpc GetTransactions(GetTransactionsRequest) returns (GetTransactionsResponse);
+  rpc TopUp(TopUpRequest) returns (TopUpResponse) {
+    option(google.api.http) = {
+      post: "/wallet/topup"
+      body: "*"
+    };
+  }
+
+  rpc Transfer(TransferRequest) returns (TransferResponse) {
+    option(google.api.http) = {
+      post: "/wallet/transfer"
+      body: "*"
+    };
+  }
+
+   rpc GetWallet (GetWalletRequest) returns (GetWalletResponse) {
+      option (google.api.http) = {
+          get: "/wallet/{user_id}"
+      };
+  }
+
+  rpc GetTransactions (GetTransactionsRequest) returns (GetTransactionsResponse) {
+      option (google.api.http) = {
+          get: "/wallet/transactions/{user_id}"
+      };
+  }
+
+}
+
+message GetWalletRequest {
+  int32 user_id = 1;
+}
+
+message GetWalletResponse {
+  Wallet wallet = 1;
 }
 
 message WalletRequest {
