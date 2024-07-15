@@ -41,7 +41,7 @@ func (w *WalletService) CreateWallet(c context.Context, req *pb.WalletRequest) (
 func (w *WalletService) GetWallet(c context.Context, req *pb.GetWalletRequest) (*pb.GetWalletResponse, error) {
 	var wallet model.Wallet
 	if err := w.db.Where("user_id = ?", req.UserId).First(&wallet).Error; err != nil {
-		log.Println("error get wallet: %v", err)
+		log.Printf("error get wallet: %v", err)
 		return nil, err
 	}
 
