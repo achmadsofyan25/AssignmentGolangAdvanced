@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"time"
 	"wallet_service/model"
+	"wallet_service/pkg"
 	pb "wallet_service/protos"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -15,7 +19,8 @@ import (
 
 type WalletService struct {
 	pb.UnimplementedWalletServiceServer
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
 func (w *WalletService) CreateWallet(c context.Context, req *pb.WalletRequest) (*pb.WalletResponse, error) {
@@ -40,8 +45,37 @@ func (w *WalletService) CreateWallet(c context.Context, req *pb.WalletRequest) (
 
 func (w *WalletService) GetWallet(c context.Context, req *pb.GetWalletRequest) (*pb.GetWalletResponse, error) {
 	var wallet model.Wallet
+	val, err := w.rdb.Get(c, "get_wallet").Result()
+	if err != nil {
+		log.Println("error get wallet data from redis")
+		return nil, err
+	}
+
+	err = json.Unmarshal([]byte(val), &wallet)
+	if err == nil {
+		return &pb.GetWalletResponse{
+			Wallet: &pb.Wallet{
+				Id:      int32(wallet.ID),
+				UserId:  int32(wallet.UserID),
+				Balance: float32(wallet.Balance),
+			},
+		}, nil
+	}
+
 	if err := w.db.Where("user_id = ?", req.UserId).First(&wallet).Error; err != nil {
 		log.Printf("error get wallet: %v", err)
+		return nil, err
+	}
+
+	byteData, err := json.Marshal(wallet)
+	if err != nil {
+		log.Println("error marshal data")
+		return nil, err
+	}
+
+	err = w.rdb.SetEx(c, "get_wallet", byteData, 60*time.Second).Err()
+	if err != nil {
+		log.Println("error set wallet data in redis")
 		return nil, err
 	}
 
@@ -143,7 +177,31 @@ func (w *WalletService) Transfer(c context.Context, req *pb.TransferRequest) (*p
 
 func (w *WalletService) GetTransactions(c context.Context, req *pb.GetTransactionsRequest) (*pb.GetTransactionsResponse, error) {
 	var listTransaction []model.Transaction
-	err := w.db.Where("user_id = ?", req.UserId).Find(&listTransaction).Error
+
+	v_trans, err := w.rdb.Get(c, "get_trans").Result()
+	if err != nil {
+		log.Println("error get transactions in redis")
+		return nil, err
+	}
+
+	err = json.Unmarshal([]byte(v_trans), &listTransaction)
+	if err == nil {
+		listTrans := []*pb.Transaction{}
+		for _, v := range listTransaction {
+			listTrans = append(listTrans, &pb.Transaction{
+				Id:     uint32(v.ID),
+				UserId: uint32(v.UserID),
+				Type:   v.Type,
+				Amount: float32(v.Amount),
+			})
+		}
+
+		return &pb.GetTransactionsResponse{
+			Transactions: listTrans,
+		}, nil
+	}
+
+	err = w.db.Where("user_id = ?", req.UserId).Find(&listTransaction).Error
 	if err != nil {
 		log.Println(err)
 		return nil, err
@@ -173,8 +231,12 @@ func main() {
 
 	DB.AutoMigrate(&model.Wallet{}, &model.Transaction{})
 
+	// redis
+	rdb := pkg.ConnectRedis()
+	defer rdb.Close()
+
 	walletService := grpc.NewServer()
-	pb.RegisterWalletServiceServer(walletService, &WalletService{db: DB})
+	pb.RegisterWalletServiceServer(walletService, &WalletService{db: DB, rdb: rdb})
 
 	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
