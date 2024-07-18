@@ -45,21 +45,18 @@ func (w *WalletService) CreateWallet(c context.Context, req *pb.WalletRequest) (
 
 func (w *WalletService) GetWallet(c context.Context, req *pb.GetWalletRequest) (*pb.GetWalletResponse, error) {
 	var wallet model.Wallet
-	val, err := w.rdb.Get(c, "get_wallet").Result()
-	if err != nil {
-		log.Println("error get wallet data from redis")
-		return nil, err
-	}
-
-	err = json.Unmarshal([]byte(val), &wallet)
+	val, err := w.rdb.Get(c, "get_wallet"+string(req.UserId)).Result()
 	if err == nil {
-		return &pb.GetWalletResponse{
-			Wallet: &pb.Wallet{
-				Id:      int32(wallet.ID),
-				UserId:  int32(wallet.UserID),
-				Balance: float32(wallet.Balance),
-			},
-		}, nil
+		err = json.Unmarshal([]byte(val), &wallet)
+		if err == nil {
+			return &pb.GetWalletResponse{
+				Wallet: &pb.Wallet{
+					Id:      int32(wallet.ID),
+					UserId:  int32(wallet.UserID),
+					Balance: float32(wallet.Balance),
+				},
+			}, nil
+		}
 	}
 
 	if err := w.db.Where("user_id = ?", req.UserId).First(&wallet).Error; err != nil {
@@ -73,7 +70,7 @@ func (w *WalletService) GetWallet(c context.Context, req *pb.GetWalletRequest) (
 		return nil, err
 	}
 
-	err = w.rdb.SetEx(c, "get_wallet", byteData, 60*time.Second).Err()
+	err = w.rdb.SetEx(c, "get_wallet"+string(req.UserId), string(byteData), 60*time.Second).Err()
 	if err != nil {
 		log.Println("error set wallet data in redis")
 		return nil, err
@@ -178,27 +175,24 @@ func (w *WalletService) Transfer(c context.Context, req *pb.TransferRequest) (*p
 func (w *WalletService) GetTransactions(c context.Context, req *pb.GetTransactionsRequest) (*pb.GetTransactionsResponse, error) {
 	var listTransaction []model.Transaction
 
-	v_trans, err := w.rdb.Get(c, "get_trans").Result()
-	if err != nil {
-		log.Println("error get transactions in redis")
-		return nil, err
-	}
-
-	err = json.Unmarshal([]byte(v_trans), &listTransaction)
+	v_trans, err := w.rdb.Get(c, "get_trans"+string(req.UserId)).Result()
 	if err == nil {
-		listTrans := []*pb.Transaction{}
-		for _, v := range listTransaction {
-			listTrans = append(listTrans, &pb.Transaction{
-				Id:     uint32(v.ID),
-				UserId: uint32(v.UserID),
-				Type:   v.Type,
-				Amount: float32(v.Amount),
-			})
-		}
+		err = json.Unmarshal([]byte(v_trans), &listTransaction)
+		if err == nil {
+			listTrans := []*pb.Transaction{}
+			for _, v := range listTransaction {
+				listTrans = append(listTrans, &pb.Transaction{
+					Id:     uint32(v.ID),
+					UserId: uint32(v.UserID),
+					Type:   v.Type,
+					Amount: float32(v.Amount),
+				})
+			}
 
-		return &pb.GetTransactionsResponse{
-			Transactions: listTrans,
-		}, nil
+			return &pb.GetTransactionsResponse{
+				Transactions: listTrans,
+			}, nil
+		}
 	}
 
 	err = w.db.Where("user_id = ?", req.UserId).Find(&listTransaction).Error
@@ -215,6 +209,18 @@ func (w *WalletService) GetTransactions(c context.Context, req *pb.GetTransactio
 			Type:   v.Type,
 			Amount: float32(v.Amount),
 		})
+	}
+
+	byteData, err := json.Marshal(listTrans)
+	if err != nil {
+		log.Println("error marshal data")
+		return nil, err
+	}
+
+	err = w.rdb.SetEx(c, "get_trans"+string(req.UserId), string(byteData), 60*time.Second).Err()
+	if err != nil {
+		log.Println("error set wallet data in redis")
+		return nil, err
 	}
 
 	return &pb.GetTransactionsResponse{

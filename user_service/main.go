@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net"
+	"time"
 	"user_service/model"
+	"user_service/pkg"
 	pb "user_service/protos"
 	walletPb "wallet_service/protos"
 
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -17,10 +21,46 @@ type UserServer struct {
 	pb.UnimplementedUserServiceServer
 	db           *gorm.DB
 	walletClient walletPb.WalletServiceClient
+	rdb          *redis.Client
 }
 
 func (u *UserServer) GetUser(c context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
 	var getUser model.User
+
+	val, err := u.rdb.Get(c, "get_user"+string(req.Id)).Result()
+	if err == nil {
+		err := json.Unmarshal([]byte(val), &getUser)
+		if err == nil {
+			user_wallet, err := u.walletClient.GetWallet(c, &walletPb.GetWalletRequest{UserId: int32(getUser.ID)})
+			if err != nil {
+				log.Println("cant get user wallet")
+				return nil, err
+			}
+
+			list_transaction, err := u.walletClient.GetTransactions(c, &walletPb.GetTransactionsRequest{UserId: int32(getUser.ID)})
+			if err != nil {
+				log.Println("cant get user transactions")
+				return nil, err
+			}
+
+			var list_trans []*pb.TransactionUser
+
+			for _, v := range list_transaction.Transactions {
+				list_trans = append(list_trans, &pb.TransactionUser{
+					Type:   v.Type,
+					Amount: v.Amount,
+				})
+			}
+
+			return &pb.GetUserResponse{
+				Id:           int32(getUser.ID),
+				Name:         getUser.Name,
+				Balance:      int32(user_wallet.Wallet.GetBalance()),
+				Transactions: list_trans,
+			}, nil
+		}
+	}
+
 	if err := u.db.Find(&getUser, req.Id).Error; err != nil {
 		log.Println("cant get user")
 		return nil, err
@@ -46,6 +86,9 @@ func (u *UserServer) GetUser(c context.Context, req *pb.GetUserRequest) (*pb.Get
 			Amount: v.Amount,
 		})
 	}
+
+	byteData, _ := json.Marshal(getUser)
+	u.rdb.SetEx(c, "get_user"+string(req.Id), string(byteData), 60*time.Second)
 
 	return &pb.GetUserResponse{
 		Id:           int32(getUser.ID),
@@ -96,10 +139,13 @@ func main() {
 	}
 	defer walletConn.Close()
 
-	walletClient := walletPb.NewWalletServiceClient(walletConn)
+	// redis
+	rdb := pkg.ConnectRedis()
+	defer rdb.Close()
 
+	walletClient := walletPb.NewWalletServiceClient(walletConn)
 	userServer := grpc.NewServer()
-	pb.RegisterUserServiceServer(userServer, &UserServer{db: DB, walletClient: walletClient})
+	pb.RegisterUserServiceServer(userServer, &UserServer{db: DB, walletClient: walletClient, rdb: rdb})
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
