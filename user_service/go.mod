@@ -5,6 +5,7 @@ go 1.22.5
 require (
 	github.com/golang/mock v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0
+	github.com/redis/go-redis/v9 v9.5.4
 	github.com/stretchr/testify v1.8.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20240708141625-4ad9e859172b
 	google.golang.org/grpc v1.65.0
@@ -27,7 +28,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/redis/go-redis/v9 v9.5.4 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
